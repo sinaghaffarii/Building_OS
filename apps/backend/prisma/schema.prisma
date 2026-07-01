@@ -1,0 +1,839 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum OrganizationType {
+  INDIVIDUAL_MANAGER
+  PROPERTY_MANAGEMENT_COMPANY
+  BUILDING_BOARD
+  OTHER
+}
+
+enum OrganizationStatus {
+  ACTIVE
+  SUSPENDED
+  INACTIVE
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  BLOCKED
+}
+
+enum RoleScope {
+  SYSTEM
+  ORGANIZATION
+  BUILDING
+}
+
+enum MemberStatus {
+  ACTIVE
+  INVITED
+  SUSPENDED
+  REMOVED
+}
+
+enum BuildingType {
+  RESIDENTIAL
+  COMMERCIAL
+  MIXED
+}
+
+enum BuildingStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum UnitStatus {
+  OCCUPIED
+  VACANT
+  INACTIVE
+}
+
+enum ResidentStatus {
+  ACTIVE
+  INACTIVE
+  MOVED_OUT
+}
+
+enum ResidentRelationType {
+  OWNER
+  TENANT
+  OWNER_REPRESENTATIVE
+  FAMILY_MEMBER
+}
+
+enum OccupancyStatus {
+  CURRENT
+  PAST
+}
+
+enum ChargePlanType {
+  FIXED
+  AREA_BASED
+  PERSON_BASED
+  PARKING_BASED
+  ELEVATOR_BASED
+  COEFFICIENT_BASED
+  COMBINED
+  MANUAL
+}
+
+enum ChargePlanStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum ChargeCycleStatus {
+  DRAFT
+  CALCULATED
+  ISSUED
+  CANCELLED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum PaymentProvider {
+  ZARINPAL
+  ZIBAL
+  NEXTPAY
+  IDPAY
+  PAYIR
+  MANUAL
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  EXPIRED
+  CANCELLED
+  REFUNDED
+}
+
+enum GatewayMode {
+  SANDBOX
+  PRODUCTION
+}
+
+enum GatewayStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum ExpenseCategory {
+  WATER
+  ELECTRICITY
+  GAS
+  CLEANING
+  SECURITY
+  MAINTENANCE
+  REPAIR
+  ELEVATOR
+  GARDENING
+  INSURANCE
+  OTHER
+}
+
+enum NotificationChannel {
+  SMS
+  EMAIL
+  PUSH
+  TELEGRAM
+  WHATSAPP
+}
+
+enum NotificationType {
+  OTP
+  INVOICE_ISSUED
+  PAYMENT_SUCCESS
+  PAYMENT_FAILED
+  PAYMENT_REMINDER
+  ANNOUNCEMENT
+}
+
+enum NotificationStatus {
+  PENDING
+  PROCESSING
+  SENT
+  FAILED
+  CANCELLED
+}
+
+enum OtpPurpose {
+  LOGIN
+  REGISTER
+  VERIFY_MOBILE
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  EXPIRED
+}
+
+model Organization {
+  id          String             @id @default(cuid())
+  name        String
+  slug        String             @unique
+  type        OrganizationType
+  status      OrganizationStatus @default(ACTIVE)
+  ownerUserId String
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  ownerUser User @relation("OrganizationOwner", fields: [ownerUserId], references: [id])
+
+  members       OrganizationMember[]
+  buildings     Building[]
+  subscriptions Subscription[]
+  auditLogs     AuditLog[]
+
+  @@index([ownerUserId])
+  @@index([status])
+  @@index([deletedAt])
+}
+
+model User {
+  id           String     @id @default(cuid())
+  firstName    String
+  lastName     String
+  fullName     String?
+  mobile       String     @unique
+  email        String?    @unique
+  nationalCode String?    @unique
+  avatarUrl    String?
+  status       UserStatus @default(ACTIVE)
+  lastLoginAt  DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  ownedOrganizations  Organization[]       @relation("OrganizationOwner")
+  organizationMembers OrganizationMember[]
+  buildingMembers     BuildingMember[]
+  residentProfiles    ResidentProfile[]
+  refreshTokens       RefreshToken[]
+  createdExpenses     Expense[]
+  notifications       Notification[]
+  auditLogs           AuditLog[]           @relation("AuditActor")
+
+  @@index([mobile])
+  @@index([status])
+  @@index([deletedAt])
+}
+
+model Role {
+  id          String    @id @default(cuid())
+  name        String
+  key         String    @unique
+  description String?
+  scope       RoleScope
+  isSystem    Boolean   @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  rolePermissions     RolePermission[]
+  organizationMembers OrganizationMember[]
+  buildingMembers     BuildingMember[]
+
+  @@index([scope])
+}
+
+model Permission {
+  id          String  @id @default(cuid())
+  key         String  @unique
+  description String?
+  module      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  rolePermissions RolePermission[]
+}
+
+model RolePermission {
+  id           String   @id @default(cuid())
+  roleId       String
+  permissionId String
+  createdAt    DateTime @default(now())
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@index([roleId])
+  @@index([permissionId])
+}
+
+model OrganizationMember {
+  id             String       @id @default(cuid())
+  organizationId String
+  userId         String
+  roleId         String
+  status         MemberStatus @default(ACTIVE)
+  joinedAt       DateTime     @default(now())
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role         Role         @relation(fields: [roleId], references: [id])
+
+  @@unique([organizationId, userId])
+  @@index([organizationId])
+  @@index([userId])
+  @@index([roleId])
+  @@index([status])
+  @@index([deletedAt])
+}
+
+model Building {
+  id             String @id @default(cuid())
+  organizationId String
+
+  name       String
+  code       String?
+  type       BuildingType
+  province   String?
+  city       String?
+  address    String
+  postalCode String?
+
+  blockCount Int  @default(1)
+  floorCount Int?
+  unitCount  Int  @default(0)
+
+  status BuildingStatus @default(ACTIVE)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  members               BuildingMember[]
+  blocks                Block[]
+  units                 Unit[]
+  residentProfiles      ResidentProfile[]
+  unitResidents         UnitResident[]
+  chargePlans           ChargePlan[]
+  chargeCycles          ChargeCycle[]
+  chargeItems           ChargeItem[]
+  invoices              Invoice[]
+  payments              Payment[]
+  paymentGatewayConfigs PaymentGatewayConfig[]
+  expenses              Expense[]
+  notifications         Notification[]
+  auditLogs             AuditLog[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId])
+  @@index([status])
+  @@index([deletedAt])
+}
+
+model BuildingMember {
+  id         String       @id @default(cuid())
+  buildingId String
+  userId     String
+  roleId     String
+  status     MemberStatus @default(ACTIVE)
+  joinedAt   DateTime     @default(now())
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  building Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role     Role     @relation(fields: [roleId], references: [id])
+
+  @@unique([buildingId, userId, roleId])
+  @@index([buildingId])
+  @@index([userId])
+  @@index([roleId])
+  @@index([status])
+  @@index([deletedAt])
+}
+
+model Block {
+  id          String  @id @default(cuid())
+  buildingId  String
+  name        String
+  code        String
+  floorCount  Int?
+  description String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  building Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  units    Unit[]
+
+  @@unique([buildingId, code])
+  @@index([buildingId])
+  @@index([deletedAt])
+}
+
+model Unit {
+  id         String  @id @default(cuid())
+  buildingId String
+  blockId    String?
+
+  number String
+  floor  Int?
+  area   Decimal? @db.Decimal(10, 2)
+
+  chargeCoefficient Decimal? @db.Decimal(10, 4)
+  residentCount     Int      @default(0)
+  parkingCount      Int      @default(0)
+  storageCount      Int      @default(0)
+
+  status UnitStatus @default(OCCUPIED)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  building Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  block    Block?   @relation(fields: [blockId], references: [id], onDelete: SetNull)
+
+  unitResidents UnitResident[]
+  chargeItems   ChargeItem[]
+  invoices      Invoice[]
+  payments      Payment[]
+
+  @@unique([buildingId, blockId, number])
+  @@index([buildingId])
+  @@index([blockId])
+  @@index([status])
+  @@index([deletedAt])
+}
+
+model ResidentProfile {
+  id         String  @id @default(cuid())
+  buildingId String
+  userId     String?
+
+  firstName    String
+  lastName     String
+  mobile       String
+  nationalCode String?
+  status       ResidentStatus @default(ACTIVE)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  building Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  user     User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  unitResidents UnitResident[]
+
+  @@index([buildingId])
+  @@index([userId])
+  @@index([mobile])
+  @@index([status])
+  @@index([deletedAt])
+}
+
+model UnitResident {
+  id                String @id @default(cuid())
+  buildingId        String
+  unitId            String
+  residentProfileId String
+
+  relationType    ResidentRelationType
+  occupancyStatus OccupancyStatus      @default(CURRENT)
+
+  moveInDate  DateTime?
+  moveOutDate DateTime?
+  isPrimary   Boolean   @default(false)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  building        Building        @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  unit            Unit            @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  residentProfile ResidentProfile @relation(fields: [residentProfileId], references: [id], onDelete: Cascade)
+
+  @@index([buildingId])
+  @@index([unitId])
+  @@index([residentProfileId])
+  @@index([occupancyStatus])
+  @@index([deletedAt])
+}
+
+model ChargePlan {
+  id         String @id @default(cuid())
+  buildingId String
+
+  name   String
+  type   ChargePlanType
+  status ChargePlanStatus @default(ACTIVE)
+  config Json
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  building     Building      @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  chargeCycles ChargeCycle[]
+
+  @@index([buildingId])
+  @@index([type])
+  @@index([status])
+  @@index([deletedAt])
+}
+
+model ChargeCycle {
+  id           String @id @default(cuid())
+  buildingId   String
+  chargePlanId String
+
+  title       String
+  periodStart DateTime
+  periodEnd   DateTime
+  dueDate     DateTime
+  status      ChargeCycleStatus @default(DRAFT)
+  totalAmount BigInt            @default(0)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  building   Building   @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  chargePlan ChargePlan @relation(fields: [chargePlanId], references: [id], onDelete: Cascade)
+
+  chargeItems ChargeItem[]
+  invoices    Invoice[]
+
+  @@index([buildingId])
+  @@index([chargePlanId])
+  @@index([status])
+  @@index([periodStart, periodEnd])
+  @@index([deletedAt])
+}
+
+model ChargeItem {
+  id            String @id @default(cuid())
+  buildingId    String
+  chargeCycleId String
+  unitId        String
+
+  amount  BigInt
+  details Json
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  building    Building    @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  chargeCycle ChargeCycle @relation(fields: [chargeCycleId], references: [id], onDelete: Cascade)
+  unit        Unit        @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  @@unique([chargeCycleId, unitId])
+  @@index([buildingId])
+  @@index([chargeCycleId])
+  @@index([unitId])
+}
+
+model Invoice {
+  id            String @id @default(cuid())
+  buildingId    String
+  chargeCycleId String
+  unitId        String
+
+  invoiceNumber String
+
+  baseAmount     BigInt
+  discountAmount BigInt @default(0)
+  penaltyAmount  BigInt @default(0)
+  finalAmount    BigInt
+  paidAmount     BigInt @default(0)
+
+  issueDate DateTime
+  dueDate   DateTime
+
+  status InvoiceStatus @default(DRAFT)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  building    Building    @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  chargeCycle ChargeCycle @relation(fields: [chargeCycleId], references: [id], onDelete: Cascade)
+  unit        Unit        @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  payments Payment[]
+
+  @@unique([buildingId, invoiceNumber])
+  @@unique([chargeCycleId, unitId])
+  @@index([buildingId])
+  @@index([chargeCycleId])
+  @@index([unitId])
+  @@index([status])
+  @@index([dueDate])
+  @@index([deletedAt])
+}
+
+model Payment {
+  id         String @id @default(cuid())
+  buildingId String
+  invoiceId  String
+  unitId     String
+
+  provider     PaymentProvider
+  authority    String?         @unique
+  refId        String?         @unique
+  trackingCode String?         @unique
+
+  amount BigInt
+  status PaymentStatus @default(PENDING)
+
+  gatewayRequestPayload Json?
+  gatewayVerifyPayload  Json?
+
+  paidAt    DateTime?
+  expiresAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  building Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  invoice  Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  unit     Unit     @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  @@index([buildingId])
+  @@index([invoiceId])
+  @@index([unitId])
+  @@index([provider])
+  @@index([status])
+  @@index([paidAt])
+}
+
+model PaymentGatewayConfig {
+  id         String @id @default(cuid())
+  buildingId String
+
+  provider           PaymentProvider
+  merchantId         String
+  encryptedApiKey    String?
+  encryptedSecretKey String?
+
+  mode   GatewayMode   @default(PRODUCTION)
+  status GatewayStatus @default(ACTIVE)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  building Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+
+  @@unique([buildingId, provider])
+  @@index([buildingId])
+  @@index([status])
+  @@index([deletedAt])
+}
+
+model Expense {
+  id         String @id @default(cuid())
+  buildingId String
+
+  category    ExpenseCategory
+  title       String
+  description String?
+
+  amount      BigInt
+  expenseDate DateTime
+
+  receiptFileUrl String?
+  createdById    String
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  building  Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  createdBy User     @relation(fields: [createdById], references: [id])
+
+  @@index([buildingId])
+  @@index([createdById])
+  @@index([category])
+  @@index([expenseDate])
+  @@index([deletedAt])
+}
+
+model Notification {
+  id         String  @id @default(cuid())
+  buildingId String?
+  userId     String?
+
+  channel NotificationChannel
+  type    NotificationType
+
+  recipient String
+  title     String?
+  message   String
+
+  status            NotificationStatus @default(PENDING)
+  provider          String?
+  providerMessageId String?
+  errorMessage      String?
+
+  scheduledAt DateTime?
+  sentAt      DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  building Building? @relation(fields: [buildingId], references: [id], onDelete: SetNull)
+  user     User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([buildingId])
+  @@index([userId])
+  @@index([channel])
+  @@index([type])
+  @@index([status])
+  @@index([scheduledAt])
+}
+
+model OtpCode {
+  id String @id @default(cuid())
+
+  mobile   String
+  codeHash String
+  purpose  OtpPurpose
+
+  expiresAt    DateTime
+  consumedAt   DateTime?
+  attemptCount Int       @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@index([mobile])
+  @@index([purpose])
+  @@index([expiresAt])
+}
+
+model RefreshToken {
+  id String @id @default(cuid())
+
+  userId    String
+  tokenHash String
+
+  revokedAt DateTime?
+  expiresAt DateTime
+
+  ipAddress String?
+  userAgent String?
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model AuditLog {
+  id String @id @default(cuid())
+
+  organizationId String?
+  buildingId     String?
+  actorUserId    String?
+
+  action     String
+  entityType String
+  entityId   String
+
+  oldValue Json?
+  newValue Json?
+
+  ipAddress String?
+  userAgent String?
+
+  createdAt DateTime @default(now())
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  building     Building?     @relation(fields: [buildingId], references: [id], onDelete: SetNull)
+  actorUser    User?         @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([buildingId])
+  @@index([actorUserId])
+  @@index([action])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
+
+model SubscriptionPlan {
+  id String @id @default(cuid())
+
+  name        String
+  code        String  @unique
+  description String?
+
+  maxUnits     Int?
+  maxBuildings Int?
+
+  priceMonthly BigInt
+  priceYearly  BigInt
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  subscriptions Subscription[]
+
+  @@index([isActive])
+}
+
+model Subscription {
+  id String @id @default(cuid())
+
+  organizationId String
+  planId         String
+
+  status SubscriptionStatus @default(TRIALING)
+
+  startedAt          DateTime
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+  cancelledAt        DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  plan         SubscriptionPlan @relation(fields: [planId], references: [id])
+
+  @@index([organizationId])
+  @@index([planId])
+  @@index([status])
+}
