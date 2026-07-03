@@ -5,9 +5,23 @@
     "build": "turbo run build",
     "dev": "turbo run dev",
     "lint": "turbo run lint",
-    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
-    "check-types": "turbo run check-types"
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml}\"",
+    "check-types": "turbo run check-types",
+    "db:up": "docker compose -f docker/docker-compose.yml up -d",
+    "db:down": "docker compose -f docker/docker-compose.yml down",
+    "db:logs": "docker compose -f docker/docker-compose.yml logs -f"
   },
+  "keywords": [
+    "saas",
+    "building-management",
+    "property-management",
+    "nextjs",
+    "express",
+    "prisma",
+    "postgresql"
+  ],
+  "license": "UNLICENSED",
   "devDependencies": {
     "prettier": "^3.7.4",
     "turbo": "^2.10.1",
